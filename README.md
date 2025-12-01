@@ -1,8 +1,3 @@
-C'est noté. Vous souhaitez que l'intitulé de la section "Création de l'Exécutable" (`📦 Creating a Standalone Executable...`) ne fasse **pas** partie du bloc de code précédent, afin de fermer le bloc de code après la commande de lancement du keylogger.
-
-Voici le fichier `README.md` complet mis à jour, avec la correction de la séparation des blocs de code pour la section de compilation :
-
-````markdown
 # 🚀 Advanced C2 Keylogger (Cybersecurity Lab)
 
 This project simulates an **Advanced Command & Control (C&C) Keylogger** system, developed as a cybersecurity laboratory exercise. Its purpose is to collect various events (**keystrokes, audio, screenshots**) from a victim machine, encrypt the data, exfiltrate it via HTTP to an attacker's server, and visualize the logs in real-time using a Streamlit dashboard.
@@ -13,7 +8,7 @@ This project simulates an **Advanced Command & Control (C&C) Keylogger** system,
 
 The project is divided into three main components, each residing in its own top-level folder:
 
-### 1. 🖥️ Target (Victim) (Folder `cible/`)
+### 1. 🖥️ Target (Victim) (Folder `victime/`)
 
 | File | Role |
 | :--- | :--- |
@@ -25,14 +20,14 @@ The project is divided into three main components, each residing in its own top-
 
 | File/Folder | Role |
 | :--- | :--- |
-| `server.py` | The **Flask server** that receives and decrypts HTTP POST requests from the victim. |
+| `server_http.py` | The **Flask server** that receives and decrypts HTTP POST requests from the victim. |
 | `stockage/` | **Storage Folder**: Stores the final decrypted logs. (Ignored by Git). |
 
 ### 3. 📊 Controller (C2 Dashboard) (Folder `controller/`)
 
 | File | Role |
 | :--- | :--- |
-| `controller.py` | The **Streamlit Dashboard** (the C2) for real-time visualization and analysis. |
+| `dashcoard.py` | The **Streamlit Dashboard** (the C2) for real-time visualization and analysis. |
 
 ### 4. 📄 Root Configuration
 
@@ -54,7 +49,7 @@ The project is divided into three main components, each residing in its own top-
 ### Step 1: Initial Setup and C2 Configuration
 
 1.  **Update C2 IP Address:**
-    Edit the file **`cible/config.py`** and replace the default IP in the `SERVER_URL` variable with the **actual IP address** of your attacker VM (e.g., `http://192.168.1.10:5000/log`).
+    Edit the file **`victime/config.py`** and replace the default IP in the `SERVER_URL` variable with the **actual IP address** of your attacker VM (e.g., `http://192.168.1.10:5000/log`).
 
 2.  **Install Dependencies:**
     Using the single root `requirements.txt` file, install all dependencies in the respective virtual environments.
@@ -106,7 +101,7 @@ pip install pyinstaller
 
 ### Compilation
 
-Navigate to the **`cible/`** folder and execute the appropriate command based on the target OS:
+Navigate to the **`victime/`** folder and execute the appropriate command based on the target OS:
 
 | Target OS | Command | Output |
 | :--- | :--- | :--- |
@@ -120,7 +115,7 @@ Navigate to the **`cible/`** folder and execute the appropriate command based on
   * **`--windowed` (Windows only)**: Prevents the console window from opening, running the application silently in the background.
   * **`--add-data`**: **Crucial step\!** Embeds the `config.py` file into the executable.
 
-The final executable file will be located in the **`dist`** folder (e.g., `cible/dist/keylogger.exe`).
+The final executable file will be located in the **`dist`** folder (e.g., `victime/dist/keylogger.exe`).
 
 -----
 
@@ -148,7 +143,3 @@ The final executable file will be located in the **`dist`** folder (e.g., `cible
   * **Communication Switch (`switch_mode`)**: Framework ready for implementing protocol switching (e.g., HTTP to TCP).
   * **Remote Commands**: Potential to extend the Flask API to send specific commands back to the victim.
 
-<!-- end list -->
-
-```
-```
