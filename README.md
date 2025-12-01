@@ -1,50 +1,49 @@
+C'est noté. Vous souhaitez que l'intitulé de la section "Création de l'Exécutable" (`📦 Creating a Standalone Executable...`) ne fasse **pas** partie du bloc de code précédent, afin de fermer le bloc de code après la commande de lancement du keylogger.
+
+Voici le fichier `README.md` complet mis à jour, avec la correction de la séparation des blocs de code pour la section de compilation :
+
+````markdown
 # 🚀 Advanced C2 Keylogger (Cybersecurity Lab)
 
 This project simulates an **Advanced Command & Control (C&C) Keylogger** system, developed as a cybersecurity laboratory exercise. Its purpose is to collect various events (**keystrokes, audio, screenshots**) from a victim machine, encrypt the data, exfiltrate it via HTTP to an attacker's server, and visualize the logs in real-time using a Streamlit dashboard.
-
-
 
 ---
 
 ## 🏗️ Project Structure
 
-The project is divided into three main components, each residing in its own folder to simulate the network architecture:
+The project is divided into three main components, each residing in its own top-level folder:
 
 ### 1. 🖥️ Target (Victim) (Folder `cible/`)
 
-Contains the Keylogger itself, intended to be executed on the victim's machine.
-
 | File | Role |
 | :--- | :--- |
-| `keylogger.py` | The core keylogger logic: keystroke, audio, and screenshot capture, encryption, and dispatch. |
-| `sender.py` | Module managing the data exfiltration (HTTP POST or TCP Socket) to the C2 server. |
-| `config.py` | Centralized configuration file (Server URL, intervals, communication mode). |
-| `requirements.txt` | Python dependencies required for the keylogger (e.g., `pynput`, `pyaudio`, `mss`, `cryptography`). |
+| `keylogger.py` | The core keylogger logic: capture, encryption, and dispatch. |
+| `sender.py` | Module managing the data exfiltration (HTTP POST or TCP Socket). |
+| **`config.py`** | **CRITICAL:** Centralized configuration file. Must be edited with the Attacker's IP. |
 
-### 2. 🗄️ Attacker (C2 Server) (Folder `attaquant/`)
-
-Contains the C&C server (Flask REST API) and the real-time visualization interface (Streamlit).
+### 2. 🗄️ Attacker (C2 Server Receiver) (Folder `attaquant/`)
 
 | File/Folder | Role |
 | :--- | :--- |
-| `server.py` | The **Flask server** that receives HTTP POST requests from the victim. It handles data storage. |
-| `controller.py` | The **Streamlit Dashboard** (the C2) for real-time log visualization and analysis. |
-| `stockage/` | **Storage Folder**: Stores the decrypted logs, organized by `victim_id` (`events.jsonl`). |
-| `requirements.txt` | Python dependencies for the attacker (e.g., `flask`, `streamlit`, `pandas`, `waitress`). |
+| `server.py` | The **Flask server** that receives and decrypts HTTP POST requests from the victim. |
+| `stockage/` | **Storage Folder**: Stores the final decrypted logs. (Ignored by Git). |
 
-### 3. ⚙️ Configuration (File `config.py`)
+### 3. 📊 Controller (C2 Dashboard) (Folder `controller/`)
 
-This file holds critical constants used by both components:
+| File | Role |
+| :--- | :--- |
+| `controller.py` | The **Streamlit Dashboard** (the C2) for real-time visualization and analysis. |
 
-* **`SERVER_URL`**: The complete URL of the Flask server (`http://<ATTACKER_IP>:5000/log`).
-* **`SEND_INTERVAL`**: Frequency of data packets sent (e.g., 5 seconds).
-* **`AUDIO_RATE`**, **`SCREENSHOT_INTERVAL`**, etc.
+### 4. 📄 Root Configuration
+
+| File | Rôle |
+| :--- | :--- |
+| `requirements.txt` | **Single file** listing all necessary Python dependencies for Cible, Attaquant, and Controller. |
+| **`.gitignore`** | Excludes temporary Python files, virtual environments (`venv`), and all log/storage directories. |
 
 ---
 
-## ⚙️ Build and Installation
-
-This project is written in Python. Installation requires setting up virtual environments and installing dependencies.
+## ⚙️ Compilation, Installation, and Launch
 
 ### ⚠️ Prerequisites
 
@@ -52,85 +51,104 @@ This project is written in Python. Installation requires setting up virtual envi
 * **Virtual Environments** (recommended).
 * **PyAudio** may require specific system libraries (e.g., `portaudio` on Linux) before the `pip install`.
 
-### Step 1: C2 Server Configuration (Attacker)
+### Step 1: Initial Setup and C2 Configuration
 
-1.  **Create and activate the virtual environment:**
-    ```bash
-    python3 -m venv venv_attacker
-    source venv_attacker/bin/activate  # Linux/macOS
-    .\venv_attacker\Scripts\activate   # Windows
-    ```
+1.  **Update C2 IP Address:**
+    Edit the file **`cible/config.py`** and replace the default IP in the `SERVER_URL` variable with the **actual IP address** of your attacker VM (e.g., `http://192.168.1.10:5000/log`).
 
-2.  **Install dependencies:**
+2.  **Install Dependencies:**
+    Using the single root `requirements.txt` file, install all dependencies in the respective virtual environments.
+
     ```bash
-    cd attaquant/
+    # Create and activate environment (e.g., for Attacker and Controller)
+    python3 -m venv venv_project
+    source venv_project/bin/activate
+
+    # Install all dependencies using the root file
     pip install -r requirements.txt
     ```
 
-3.  **Launch the Flask Server:**
-    The server must listen on the IP accessible by the victim (usually the host machine's IP or the VM's internal network IP).
-    ```bash
-    python server.py
-    ```
-    *Note: The server will run on `http://0.0.0.0:5000`.*
+3.  **Launch the C2 Server and Controller:**
+    Launch the receiver and the dashboard in separate terminals.
 
-4.  **Launch the Streamlit Dashboard (Controller):**
-    In a **separate terminal** (still within `venv_attacker` and the `attaquant/` folder):
     ```bash
+    # Terminal 1: Launch the Flask Server (Receiver)
+    cd attaquant/
+    python server.py
+    
+    # Terminal 2: Launch the Streamlit Dashboard (Controller Interface)
+    cd controller/
     streamlit run controller.py
     ```
 
-### Step 2: Keylogger Configuration (Target)
+### Step 2: Launching the Keylogger (Victim)
 
-1.  **Update C2 IP Address:**
-    Edit the file `cible/config.py` and replace `127.0.0.1` with the **actual IP address** of the attacker's server.
+Execute the Python script on the target machine:
 
-2.  **Install dependencies:**
-    *If using a separate VM for the victim, repeat the virtual environment setup.*
-    ```bash
-    cd cible/
-    pip install -r requirements.txt
-    ```
+```bash
+cd cible/
+python keylogger.py
+```
 
-3.  **Launch the Keylogger:**
-    ```bash
-    python keylogger.py
-    ```
-    The keylogger will immediately begin collecting and sending events to the configured C2 address.
+-----
 
----
+## 📦 Creating a Standalone Executable (`.exe` or `.pkg`)
+
+To run the keylogger without requiring Python installation on the victim machine, use **PyInstaller**. This step is typically done on the operating system matching the victim.
+
+### Installation
+
+Install PyInstaller in the victim's environment:
+
+```bash
+pip install pyinstaller
+```
+
+### Compilation
+
+Navigate to the **`cible/`** folder and execute the appropriate command based on the target OS:
+
+| Target OS | Command | Output |
+| :--- | :--- | :--- |
+| **Windows (`.exe`)** | `pyinstaller --onefile --windowed --add-data "config.py;." keylogger.py` | `dist/keylogger.exe` |
+| **Linux (`.elf`)** | `pyinstaller --onefile --add-data "config.py:." keylogger.py` | `dist/keylogger` |
+| **macOS (`.pkg`)** | `pyinstaller --onefile --add-data "config.py:." keylogger.py` | `dist/keylogger` |
+
+**Command Breakdown:**
+
+  * **`--onefile`**: Packages everything into a single executable file.
+  * **`--windowed` (Windows only)**: Prevents the console window from opening, running the application silently in the background.
+  * **`--add-data`**: **Crucial step\!** Embeds the `config.py` file into the executable.
+
+The final executable file will be located in the **`dist`** folder (e.g., `cible/dist/keylogger.exe`).
+
+-----
 
 ## ✨ Implemented Features
 
-The C2 Keylogger system implements several advanced features for data collection and analysis:
+### 1\. Multi-Event Collection
 
-### 1. Multi-Event Collection
+  * **Keystrokes (`keyboard`)**: Records all pressed keys.
+  * **Audio Clips (`audio`)**: Periodic recording of a **5-second** clip from the microphone.
+  * **Screenshots (`screenshot`)**: Periodic capture of the primary screen, taken every **15 seconds**.
 
-The keylogger simultaneously captures three types of events, each in a separate thread:
+### 2\. Security and Resilience
 
-* **Keystrokes (`keyboard`)**: Records all pressed keys (characters and special keys like `Key.enter`).
-* **Audio Clips (`audio`)**: Periodic recording of a **5-second** clip from the victim's microphone.
-* **Screenshots (`screenshot`)**: Periodic capture of the primary screen, taken every **15 seconds**.
+  * **Local Encryption**: All data is immediately encrypted using **Fernet** and stored locally.
+  * **Event Buffer**: Events are buffered locally (`logs/buffer.jsonl`) and re-sent automatically if the C2 server is temporarily unreachable, ensuring data persistence.
 
-### 2. Security and Resilience
+### 3\. C2 Dashboard (Streamlit)
 
-* **Local Encryption**: All collected data is immediately encrypted using **Fernet** (`cryptography`) and stored in the local log file (`logs/encrypted_log.jsonl`) on the victim's machine.
-* **Event Buffer**: In case of failed HTTP communication (e.g., the attacker's server is down), events are stored in a local **buffer** (`logs/buffer.jsonl`) and are prioritized for re-submission in the next successful packet.
+  * **Live Mode**: Automatic data refresh for real-time monitoring.
+  * **Text Reconstruction**: Rebuilds the user's typed text from keystrokes (handling special keys like backspace and enter).
+  * **Media Visualization**: Includes features for audio playback and visualization of decoded screenshots.
 
-### 3. C2 Dashboard (Streamlit)
+### 4\. Extensions (Ready for Implementation)
 
-The attacker's interface (`controller.py`) provides a comprehensive and interactive view of the collected data:
+  * **Communication Switch (`switch_mode`)**: Framework ready for implementing protocol switching (e.g., HTTP to TCP).
+  * **Remote Commands**: Potential to extend the Flask API to send specific commands back to the victim.
 
-* **Live Mode**: A `🔴 MODE LIVE` toggle enables a 2-second automatic refresh of the dashboard.
-* **Metrics**: Displays the total number of events, keystrokes, audio clips, and screenshots collected.
-* **Text Reconstruction**: The `reconstruct_text` function rebuilds the keystroke sequence, handling control keys (`backspace`, `enter`, `space`) to display the victim's typed text.
-* **Audio Playback**: Raw audio clips (PCM 16-bit Base64) are decoded, provided with a WAV header, and are playable directly within the Streamlit interface.
-* **Screenshot Visualization**: Images (PNG Base64) are decoded and displayed in a gallery format (3 images per row).
-* **Graphical Analysis**: Charts showing activity over time and the frequency of the most used keys.
+<!-- end list -->
 
-### 4. Extensions (Ready for Implementation)
-
-The framework is ready for the implementation of additional functionalities (as required by the lab exercise):
-
-* **Communication Switch (`switch_mode`)**: Logic is ready to be built around `INITIAL_COMM_MODE` in `config.py` to allow switching exfiltration protocols (HTTP by default, TCP/Socket option ready for implementation).
-* **Remote Commands**: The Flask API can be extended to send specific commands back to the victim (e.g., stop audio capture, change the screenshot interval).
+```
+```
