@@ -1,0 +1,27 @@
+# Fichiers et dossiers généraux de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.ipynb_checkpoints
+
+# Environnements virtuels (Recommandé pour ne pas les inclure dans le repo)
+venv/
+env/
+.venv/
+build/
+dist/
+
+# Logs et Données du Keylogger (Cible)
+# Exclut le dossier de log chiffré et le buffer local
+victime/logs/
+
+# Logs et Stockage du Serveur C2 (Attaquant)
+# Exclut le dossier où le serveur Flask stocke les événements reçus
+attaquant/stockage/
+
+# Fichiers spécifiques au système d'exploitation ou à l'IDE
+.DS_Store
+*.swp
+*.bak
