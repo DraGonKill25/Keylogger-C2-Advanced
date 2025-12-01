@@ -27,7 +27,7 @@ The project is divided into three main components, each residing in its own top-
 
 | File | Role |
 | :--- | :--- |
-| `dashcoard.py` | The **Streamlit Dashboard** (the C2) for real-time visualization and analysis. |
+| `dashboard.py` | The **Streamlit Dashboard** (the C2) for real-time visualization and analysis. |
 
 ### 4. 📄 Root Configuration
 
